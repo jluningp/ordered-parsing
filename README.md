@@ -28,5 +28,7 @@ $            exp / id
 
 Examples of expressions in WeirdAf Lambda Calculus:
 
+```
 \x.$x |> \x.$x
 \x.\y.$x
+```
