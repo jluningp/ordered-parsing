@@ -1,0 +1,13 @@
+Library
+	signature PARSER
+	signature LEXER
+	signature INTERPRETER
+	structure Lexer
+	structure Parser
+	structure Interpreter
+is
+	$/basis.cm
+	$/smlnj-lib.cm
+	lexer.sml
+	parser.sml
+	interpreter.sml
