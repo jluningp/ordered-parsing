@@ -32,3 +32,19 @@ Examples of expressions in WeirdAf Lambda Calculus:
 \x.$x |> \x.$x
 \x.\y.$x
 ```
+
+To run, load into SML/NJ and start the REPL:
+```
+$ sml -m sources.cm
+Standard ML of New Jersey
+- Interpreter.repl()
+> \y.$y |> \x.$x
+\y.$y
+> $x |> \y.\x.$x
+\t1.($t1)
+Variables alpha-varied to avoid capture replaced with fresh variables t1, t2, ...
+> $x |> \x.$x
+$x
+> x
+Parse Error. ASTs do not reduce to exp: [x]
+``` 
