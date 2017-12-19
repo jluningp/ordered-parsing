@@ -41,7 +41,7 @@ Standard ML of New Jersey
 > \y.$y |> \x.$x
 \y.$y
 > $x |> \y.\x.$y
-\t1.($t1)
+\t1.($x)
 Variables alpha-varied to avoid capture replaced with fresh variables t1, t2, ...
 > $x |> \x.$x
 $x
