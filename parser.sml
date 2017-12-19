@@ -88,7 +88,7 @@ struct
   fun prove L prev =
       if L = prev then raise ParseError (SOME L)
       else case L of
-               [x] => x
+               [(x, TEXP)] => (x, TEXP)
              | _ => prove (find L) L
 
 

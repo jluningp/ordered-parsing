@@ -44,15 +44,17 @@ struct
       case exp of
           EID s' => if s = s' then e else EID s'
         | LAM (s', exp') =>
-          if List.exists (fn x => s' = x) freeVars orelse s' = s
-          then
-            let
-              val fresh = freshTemp ()
-              val varied = (subst (s', (EID fresh, [fresh])) exp')
-            in
-              LAM (fresh, subst (s, (e, freeVars)) varied)
-            end
-          else LAM (s', subst (s, (e, freeVars)) exp')
+          if s' = s then LAM (s', exp')
+          else
+            if List.exists (fn x => s' = x) freeVars
+            then
+              let
+                val fresh = freshTemp ()
+                val varied = (subst (s', (EID fresh, [fresh])) exp')
+              in
+                LAM (fresh, subst (s, (e, freeVars)) varied)
+              end
+            else LAM (s', subst (s, (e, freeVars)) exp')
         | APP (e1, e2) => APP (subst (s, (e, freeVars)) e1, subst (s, (e, freeVars)) e2)
 
   fun reduce' e prev =
