@@ -2,15 +2,25 @@
 
 signature LEXER =
 sig
-  datatype token = SLASH | DOT | DOLLAR | ID of string | PIPE
+  datatype token = SLASH | DOT | DOLLAR | IDENT of string | PIPESYM | SEMI
   val lex : string -> token list
+  val printToken : token -> string
 end
 
 structure Lexer : LEXER =
 struct
-  datatype token = SLASH | DOT | DOLLAR | ID of string | PIPE
+  datatype token = SLASH | DOT | DOLLAR | IDENT of string | PIPESYM | SEMI
 
   exception LexError of string
+
+  fun printToken t =
+      case t of
+          SLASH => "\\"
+        | DOT => "."
+        | DOLLAR => "$"
+        | IDENT s => s
+        | PIPESYM => "|>"
+        | SEMI => ";"
 
   fun lexpipe [] = raise LexError "Half-formed pipe. Reserved token | without >"
     | lexpipe ((#">")::xs) = xs
@@ -19,7 +29,7 @@ struct
   fun lexid [] = ([], [])
     | lexid (x::xs) =
       case x of
-          (#"\\" | #"$" | #"." | #"|") => ([], x::xs)
+          (#"\\" | #"$" | #"." | #"|" | #";") => ([], x::xs)
         | #" " => ([], xs)
         | _ => (let
                  val (str, xs') = lexid xs
@@ -33,26 +43,28 @@ struct
            #"\\" => [SLASH]
          | #"$" => [DOLLAR]
          | #"." => [DOT]
+         | #";" => [SEMI]
          | #" " => []
          | #"|" => raise LexError "Half-formed pipe at EOF."
-         | _ => [ID (implode [x])])
+         | _ => [IDENT (implode [x])])
     | lexList (x::xs) =
       case x of
           #" " => lexList xs
         | #"\\" => SLASH :: (lexList xs)
         | #"$" => DOLLAR :: (lexList xs)
         | #"." => DOT :: (lexList xs)
+        | #";" => SEMI :: (lexList xs)
         | #"|" => (let
                     val xs' = lexpipe xs
                   in
-                    PIPE :: (lexList xs')
+                    PIPESYM :: (lexList xs')
                   end)
         | _ =>  (let
                   val (str, xs') = lexid (x::xs)
                 in
                   case length str of
                       0 => raise LexError "Unexpected end of identifer. Identifier cannot contain \\, $, ., or |."
-                    | _ => (ID (implode str)) :: (lexList xs')
+                    | _ => (IDENT (implode str)) :: (lexList xs')
                 end)
 
   fun lex s = lexList (explode s) handle LexError s => raise Fail s

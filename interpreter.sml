@@ -29,10 +29,9 @@ struct
 
   fun elaborate e =
       case e of
-          APPOVER(APPUNDER(APPOVER (TOKEN SLASH, TOKEN (ID s)), TOKEN DOT), body) => LAM (s, elaborate body)
-        | APPUNDER(e2, APPOVER (TOKEN PIPE, e1)) => APP (elaborate e1, elaborate e2)
-        | APPOVER(TOKEN DOLLAR, TOKEN (ID s)) => EID s
-        | _ => raise Fail ("Invalid AST " ^ (printAst e))
+          FUN (s, body) => LAM (s, elaborate body)
+        | PIPE (e2, e1) => APP (elaborate e1, elaborate e2)
+        | ID s => EID s
 
   fun freeVarsInExp e =
       case e of

@@ -1,8 +1,8 @@
-signature PARSER =
+ signature PARSER =
 sig
-  datatype ast = APPOVER of ast * ast
-               | APPUNDER of ast * ast
-               | TOKEN of Lexer.token
+  datatype ast = FUN of string * ast
+               | PIPE of ast * ast
+               | ID of string
 
   val parse : string -> ast
   val printAst : ast -> string
@@ -12,18 +12,23 @@ structure Parser : PARSER =
 struct
   open Lexer
 
-  datatype typ = TOVER of typ * typ
-               | TUNDER of typ * typ
-               | TARGS
-               | TEXP
+  datatype typ = EXP
+               | EXP'
                | TID
+               | TSLASH
+               | TDOT
+               | TDOLLAR
+               | TPIPE
+               | TSEMI
 
+  datatype ast = FUN of string * ast
+               | PIPE of ast * ast
+               | ID of string
 
-  datatype ast = APPOVER of ast * ast
-               | APPUNDER of ast * ast
-               | TOKEN of token
+  datatype parseTerm = TOKEN of token
+                     | AST of ast
 
-  exception ParseError of (ast * typ) list option
+  exception ParseError of (parseTerm * typ) list option
 
   open Lexer
 
@@ -32,32 +37,35 @@ struct
 
   fun printTyp t =
       case t of
-          TOVER (t1, t2) => "OVER (" ^ (printTyp t1) ^ ", " ^ (printTyp t2) ^ ")"
-        | TUNDER (t1, t2) => "UNDER (" ^ (printTyp t1) ^ ", " ^ (printTyp t2) ^ ")"
-        | TARGS => "ARGS"
-        | TEXP => "EXP"
-        | TID => "ID"
+          EXP => "exp"
+        | EXP' => "exp'"
+        | TID => "id"
+        | TSLASH => "\\"
+        | TDOT =>  "."
+        | TDOLLAR => "$"
+        | TPIPE => "|>"
+        | TSEMI => ";"
 
   fun printAst t =
       case t of
-          APPOVER (t1, t2) => "APPOVER (" ^ (printAst t1) ^ ", " ^ (printAst t2) ^ ")"
-        | APPUNDER (t1, t2) => "APPUNDER (" ^ (printAst t1) ^ ", " ^ (printAst t2) ^ ")"
-        | TOKEN t => case t of
-                         SLASH => "\\"
-                       | DOLLAR => "$"
-                       | DOT => "."
-                       | ID s => s
-                       | PIPE => "|>"
+          FUN (s, e2) => "\\" ^ s ^ "." ^ (printAst e2) ^ ";"
+        | PIPE (e1, e2) => (printAst e1) ^ "|>" ^ (printAst e2)
+        | ID s => "$" ^ s
 
+  fun printParseTerm t =
+      case t of
+          TOKEN e => printToken e
+        | AST a => printAst a
 
   (* Assigns a type to each token. *)
   fun lexToType l =
       case l of
-          SLASH => (TOKEN SLASH, TOVER (TARGS, TID))
-        | DOT => (TOKEN DOT, TUNDER (TARGS, TOVER (TEXP, TEXP)))
-        | ID s => (TOKEN (ID s), TID)
-        | DOLLAR => (TOKEN DOLLAR, TOVER (TEXP, TID))
-        | PIPE => (TOKEN PIPE, TOVER (TUNDER (TEXP, TEXP), TEXP))
+          SLASH => (TOKEN SLASH, TSLASH)
+        | DOT => (TOKEN DOT, TDOT)
+        | IDENT s => (TOKEN (IDENT s), TID)
+        | DOLLAR => (TOKEN DOLLAR, TDOLLAR)
+        | PIPESYM => (TOKEN PIPESYM, TPIPE)
+        | SEMI => (TOKEN SEMI, TSEMI)
 
   (* The next four functions make up a "Theorem Prover" that also happens to parse. It's a Theorem
      Prover because it takes the rules in a logic and tries to determine if they can be applied in such
@@ -65,30 +73,46 @@ struct
      in this case we want the judgement e : TEXP). We apply the rules for A / B and A \ B anywhere we can
      find adjacent terms with the right type, until we hopefully get a single AST with type TEXP. *)
 
-  fun over ((term1, TOVER (B, A)), (term2, A')) = if A = A'
-                                                  then (APPOVER (term1, term2), B)
-                                                  else raise ParseError NONE
-    | over _ = raise ParseError NONE
+  fun func ((_, TSLASH), (TOKEN (IDENT x), TID), (_, TDOT), (AST e, EXP), (_, TSEMI)) = (AST(FUN (x, e)), EXP')
+    | func ((_, TSLASH), (TOKEN (IDENT x), TID), (_, TDOT), (AST e, EXP'), (_, TSEMI)) = (AST(FUN (x, e)), EXP')
+    | func _ = raise ParseError NONE
 
-  fun under ((term1, A'), (term2, TUNDER (A, B))) = if A = A'
-                                                    then (APPUNDER (term1, term2), B)
-                                                    else raise ParseError NONE
-    | under _ = raise ParseError NONE
+  fun var ((_, TDOLLAR), (TOKEN (IDENT x), TID)) = (AST(ID x), EXP')
+    | var _ = raise ParseError NONE
 
+  fun pipe ((AST e1, EXP), (_, TPIPE), (AST e2, EXP')) = (AST (PIPE(e1, e2)), EXP)
+    | pipe ((AST e1, EXP'), (_, TPIPE), (AST e2, EXP')) = (AST (PIPE(e1, e2)), EXP)
+    | pipe _ = raise ParseError NONE
 
-  fun find [] = []
+  fun find ([] : (parseTerm * typ) list) = []
     | find [x] = [x]
-    | find (x::y::xs) =
-      over (x, y) :: (find xs)
+    | find [x, y] = ([var (x, y)] handle ParseError _ => [x, y])
+    | find [x, y, z] =
+     ([pipe (x, y, z)]
       handle ParseError _ =>
-             under (x, y) :: xs
+             (var (x, y))::[z]
              handle ParseError _ =>
-                    x :: (find (y::xs))
+                    x::(find [y, z]))
+    | find ([w, x, y, z]) =
+      (pipe (w, x, y) :: [z]
+       handle ParseError _ =>
+              (var (w, x)) :: (find (y::[z]))
+              handle ParseError _ =>
+                     w::(find (x::y::[z])))
+    | find (v::w::x::y::z::xs) =
+      (func (v, w, x, y, z)) :: (find xs)
+      handle ParseError _ =>
+             pipe (v, w, x) :: (find (y::z::xs))
+             handle ParseError _ =>
+                    (var (v, w)) :: (find (x::y::z::xs))
+                     handle ParseError _ =>
+                            v::(find (w::x::y::z::xs))
 
-  fun prove L prev =
+  fun prove (L : (parseTerm * typ) list) prev =
       if L = prev then raise ParseError (SOME L)
       else case L of
-               [(x, TEXP)] => (x, TEXP)
+               [(AST x, EXP)] => (x, EXP)
+             | [(AST x, EXP')] => (x, EXP)
              | _ => prove (find L) L
 
 
@@ -100,6 +124,6 @@ struct
         fst (prove withTypes [])
         handle ParseError (SOME L) =>
                raise Fail ("Parse Error. ASTs do not reduce to exp: " ^
-                           ListFormat.listToString printAst (map fst L))
+                           ListFormat.listToString printParseTerm (map fst L))
       end
 end
