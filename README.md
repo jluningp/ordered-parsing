@@ -40,8 +40,8 @@ Standard ML of New Jersey
 - Interpreter.repl()
 > \y.$y |> \x.$x
 \y.$y
-> $x |> \y.\x.$x
-\t1.($t1)
+> $x |> \y.\x.$y
+\t1.($x)
 Variables alpha-varied to avoid capture replaced with fresh variables t1, t2, ...
 > $x |> \x.$x
 $x
